@@ -22,7 +22,7 @@ public class TonePlayer {
 
         Thread.ofPlatform().start(() -> {
             try {
-                playToneBlocking(frequencyHz, Main.BEAT_DURATION_MS, Main.ENVELOPE);
+                playToneBlocking(frequencyHz, Main.DURATION_MS, Main.ENVELOPE);
             } catch (LineUnavailableException e) {
                 System.err.println("Failed to play tone: " + e.getMessage());
             }
@@ -30,14 +30,15 @@ public class TonePlayer {
     }
 
     /**
-     * Синхронно воспроизводит аккорд. Длительность и огибающая берутся из {@link Main}.
+     * Синхронно воспроизводит аккорд. Огибающая берётся из {@link Main}.
      */
-    public void playChord(Chord chord) throws LineUnavailableException {
+    public void playChord(Chord chord, double durationMs) throws LineUnavailableException {
         if (chord == null) {
             throw new IllegalArgumentException("Chord must not be null");
         }
+        validatePlaybackParams(durationMs, Main.ENVELOPE);
 
-        byte[] buffer = generateChordWave(chord.getFrequencies(), Main.CHORD_DURATION_MS, Main.ENVELOPE);
+        byte[] buffer = generateChordWave(chord.getFrequencies(), durationMs, Main.ENVELOPE);
         playBuffer(buffer);
     }
 
@@ -45,21 +46,49 @@ public class TonePlayer {
      * Синхронно воспроизводит удар вниз. Параметры берутся из {@link Main}.
      */
     public void playDownbeat() throws LineUnavailableException {
-        playToneBlocking(Main.DOWNBEAT_HZ, Main.BEAT_DURATION_MS, Main.ENVELOPE);
+        playToneBlocking(Main.DOWNBEAT_HZ, Main.DURATION_MS, Main.ENVELOPE);
     }
 
     /**
      * Синхронно воспроизводит удар вверх. Параметры берутся из {@link Main}.
      */
     public void playUpbeat() throws LineUnavailableException {
-        playToneBlocking(Main.UPBEAT_HZ, Main.BEAT_DURATION_MS, Main.ENVELOPE);
+        playToneBlocking(Main.UPBEAT_HZ, Main.DURATION_MS, Main.ENVELOPE);
+    }
+
+    /**
+     * Воспроизводит один такт. Возвращает текущий активный аккорд.
+     */
+    public Chord playBar(Bar bar, Chord activeChord, double unitDurationMs)
+            throws LineUnavailableException, InterruptedException {
+        if (bar.getChord() != null) {
+            activeChord = bar.getChord();
+        }
+
+        if (bar.getBeatDirection() != null) {
+            if (activeChord != null) {
+                playChord(activeChord, unitDurationMs * bar.getDuration());
+            }
+        }
+
+        return activeChord;
+    }
+
+    /**
+     * Синхронная пауза.
+     */
+    public void pause(double durationMs) throws InterruptedException {
+        if (durationMs < 0) {
+            throw new IllegalArgumentException("Duration must not be negative");
+        }
+        Thread.sleep((long) durationMs);
     }
 
     /**
      * Синхронная пауза. Длительность берётся из {@link Main}.
      */
     public void pause() throws InterruptedException {
-        Thread.sleep((long) Main.PAUSE_DURATION_MS);
+        pause(Main.DURATION_MS);
     }
 
     private void playToneBlocking(double frequencyHz, double durationMs, ToneEnvelope envelope)
